@@ -8,6 +8,7 @@
 #include "Wire.h" // biblioteca pra usar a comunicação I2C
 #include <driver/adc.h> // biblioteca para comandos das portas ADC da ESP32
 #include "HardwareSerial.h" //somente para a ESP32
+#include <Adafruit_ADS1015.h> // conversor ADC
 
 // conexões wifi e thingspeak
 const char* myWriteAPIKey = "1J8YCXRMT94MVBXH";     // Write API key do canal ThingSpeak
@@ -33,7 +34,7 @@ float mediaA; //media dos analogicos pra ver a diferença contra os digitais. Te
 // Dados sensores NTC analógicos
 //Thermistor tempana0(A0); //VARIÁVEL DO TIPO THERMISTOR, INDICANDO O PINO ANALÓGICO (A2) EM QUE O TERMISTOR ESTÁ CONECTADO
 // valores NTCs analógicos
-const double VCC = 3.3; // NodeMCU on board 3.3v vcc
+const double VCC = 3.31; // NodeMCU on board 3.3v vcc
 const double R2 = 10000; // 10k ohm series resistor
 const double adc_resolution = 4095; // 10-bit adc
 const double A = 0.001129148; // thermistor equation parameters
@@ -59,6 +60,9 @@ float FP;  // D7(RX) D8(TX) Fator de Potência
 float Freq;// D7(RX) D8(TX) Frequência da rede
 float Wh;  // D7(RX) D8(TX) Watt hora
 
+//conversor para os sensores de pressao
+Adafruit_ADS1115 ads(0x48);  // cria instância do conversor analogico digital ADC */
+
 
 PZEM004Tv30 pzem(&Serial2); //usa o Serial2 do hardwareserial, pinos instânciados no construtor, padrão, 16 RX e 17 TX
 
@@ -69,28 +73,29 @@ PZEM004Tv30 pzem(&Serial2); //usa o Serial2 do hardwareserial, pinos instânciad
 /// setup ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setup() {
-  pinMode(36, INPUT);
-  pinMode(39, INPUT);
-  pinMode(34, INPUT);
+  pinMode(36, INPUT); // NTC 10k
+  pinMode(39, INPUT); // NTC 10k
+  pinMode(34, INPUT); // NTC 10k
 
-  pzem.resetEnergy();
-  pzem.setAddress(0x42);
-
-  Serial.begin(115200);
+  Serial.begin(9600);
   contador = contador + 1; // incrementa o contador pra saber a ordem das leituras. Usado pq o arduino/esp não tem relógio;
 
   WiFi.mode(WIFI_STA); //Esta linha esconde a visualização do ESP como hotspot wifi
-  //  ThingSpeak.begin(client);
-
-  sensortemp.begin();
+  ThingSpeak.begin(client);
 
   // configuração e checagem dos NTC digitais
+  sensortemp.begin();
   Serial.println("Localizando Dispositivos ...");
   Serial.print("Encontrados ");
   ndispositivos = sensortemp.getDeviceCount();
   Serial.print(ndispositivos, DEC);
   Serial.println(" dispositivos.");
   Serial.println("");
+
+  ads.begin(); // inicializando o conversor ADS
+
+  pzem.resetEnergy();
+  pzem.setAddress(0x42);
 
   Serial.println("Flag;Contador;T1;T2;T3;T4;T5;T6;pressaoBaixa;pressaoAlta;Watt;Tensao;Corrente;Fator Pot;Watt hora");
   //T1            float   °C    linha de sucção pouco após o evaporador, aprox. a meio caminho entre saída do evaporador e sucção do compressor A0(13)
@@ -123,18 +128,18 @@ void loop() {
   dados = dados + String(contador) + ";";
 
 
-  //  verificarStatusWifi(); //conecta e reconecta no wifi
-
-//  leituraNTC_digitais(); //leitura sensores digitais
-//  leituraNTC_analogicos(); //leitura sensores analógicos
+    verificarStatusWifi(); //conecta e reconecta no wifi
+ 
+  leituraNTC_digitais(); //leitura sensores digitais
+  leituraNTC_analogicos(); //leitura sensores analógicos
   leituraPressao(); //leitura transdutores de pressão
-//  consumo(); //wattímetro
+  consumo(); //wattímetro
 
   dados = dados + String(Temp1) + ";" + String(Temp2) + ";" + String(Temp3) + ";" + String(Temp4) + ";" + String(Temp5) +
           ";" + String(Temp6) + ";" + String(pressaoBaixa) + ";" + String(pressaoAlta) + ";" + String(W) + ";" +
           String(V) + ";" + String(I) + ";" + String(FP) + ";" + String(Wh);
 
-//  Serial.println(dados);
+  Serial.println(dados);
 
   //Serial.print("Média digital: ");
   //Serial.println(mediaD);
@@ -143,14 +148,16 @@ void loop() {
   //Serial.print("Diferença dos NTCs (D-A): ");
   //mediaD = mediaD - mediaA;
   //Serial.println(mediaD);
-//  Serial.print("Pressão baixa: ");
-//  Serial.println(pressaoBaixa);
-//    Serial.print("Pressão alta: ");
-//  Serial.println(pressaoAlta);
+  //Serial.print("Pressão baixa: ");
+  //Serial.println(pressaoBaixa);
+  //Serial.print("Pressão alta: ");
+  //Serial.println(pressaoAlta);
   
-  mediaD = 0; //media dos NTCs digitais
-  mediaA = 0; //media dos NTCs analogicos
+  //mediaD = 0; //media dos NTCs digitais
+  //mediaA = 0; //media dos NTCs analogicos
   
+  //enviar_ThinkSpeak();
+   
   dados = "";
 
   //delay(1000);
@@ -170,6 +177,7 @@ float calcTempAnalogico(int pino) {
     i++;
   }
   adc_value = adc_value / 50;
+  //Serial.println(adc_value);
   //adc_value = adc_value * 0.925; // correcao no nodemCU
   adc_value = adc_value * 1.05;
   Vout = (adc_value * VCC) / adc_resolution;
@@ -202,15 +210,15 @@ void leituraNTC_digitais() {
   sensortemp.requestTemperatures();
 
   Temp3 = sensortemp.getTempCByIndex(0);
-  //  ThingSpeak.setField(3, Temp3); //canal principal, campo 3
+    ThingSpeak.setField(3, Temp3); //canal principal, campo 3
   //dados = dados + String(T3) + ";";
 
   Temp5 = sensortemp.getTempCByIndex(1);
-  //  ThingSpeak.setField(5, Temp5); // canal principal, campo 5
+    ThingSpeak.setField(5, Temp5); // canal principal, campo 5
   //dados = dados + String(T5) + ";";
 
   Temp6 = sensortemp.getTempCByIndex(2);
-  //ThingSpeak.setField((i + 1), T6); //canal secundario
+  ThingSpeak.setField(6, Temp6); //canal secundario
   //dados = dados + String(T6) + ";";
 
   mediaD = (Temp3 + Temp5 + Temp6) / 3;
@@ -225,6 +233,9 @@ void leituraNTC_analogicos() {
   Temp2 = calcTempAnalogico(39); //ADC1_CHANNEL_3
   Temp4 = calcTempAnalogico(34); //ADC1_CHANNEL_6
 
+  ThingSpeak.setField(1, Temp1);
+  ThingSpeak.setField(2, Temp2);
+  ThingSpeak.setField(4, Temp4);
   //Serial.print("Teste função adc1 get voltage: ");
   //int teste = adc1_get_voltage(ADC1_CHANNEL_0);
   //int teste = adc1_get_raw(ADC1_CHANNEL_0);
@@ -238,40 +249,26 @@ void leituraNTC_analogicos() {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // sensores de pressão ////////////////////////////////////////////////////////////////////////////
 void leituraPressao() {
-  float testeV;
+  
   pressaoAlta = 0;
   int i = 0;
   while (i < 50) {
-    pressaoAlta = pressaoAlta + analogRead(32);
+    pressaoAlta = pressaoAlta + ads.readADC_SingleEnded(0);
     i++;
   }
-  pressaoAlta = pressaoAlta / 50;
-      Serial.print("ADC Pressão Alta: ");
-  Serial.println(pressaoAlta);
-  pressaoAlta = pressaoAlta * 1.1;
-  testeV = (pressaoAlta * 3.3) / 4095;
- //   Serial.print("Volt Pressão Alta: ");
- // Serial.println(testeV);
-
+  pressaoAlta = pressaoAlta / 50; // tira a média das 50 leituras
+  pressaoAlta = (pressaoAlta * 0.1875) / 1000;
+  pressaoAlta = (pressaoAlta * 30 - 19.8) / 2.64;
 
   pressaoBaixa = 0;
   i = 0;
   while (i < 50) {
-    pressaoBaixa = pressaoBaixa + analogRead(35);
+    pressaoBaixa = pressaoBaixa + ads.readADC_SingleEnded(1);
     i++;
   }
   pressaoBaixa = pressaoBaixa / 50;
- //       Serial.print("ADC Pressão Baixa: ");
- // Serial.println(pressaoBaixa);
-  
-  //Serial.print("Volt Pressão Baixa: ");
-  //testeV = (pressaoBaixa * 3.3) / 4095;
-  //Serial.println(testeV);
-
-  // devido ao resistor shunt que transforma os 4mA~20mA em tensão, a tensão mínima que pode ser lida é 0,66V, que equivale a 819 na leitura da porta analógica e 0 Bar.
-  //pressaoAlta = (pressaoAlta) * 0.0091547; // o valor 0.0091547 é 30 (bar) / (4096 - 819), o passo do sensor de alta pressao pra cada unidade da leitura analógica
-  pressaoAlta = 11.364 * testeV - 7,5;
-  pressaoBaixa = (pressaoBaixa) * 0.00305157; // o valor 0.00305157 é 10 (bar) / (4096 - 819), o passo do sensor de baixa pressao pra cada unidade da leitura analógica
+  pressaoBaixa = (pressaoBaixa * 0.1875) / 1000;
+  pressaoBaixa = (pressaoBaixa * 10 - 6.6) / 2.64;
 
   //  ThingSpeak.setField(7, pressaoAlta);
   //pressaoAlta = pressaoAlta * 14.504; //convertendo pra psi
@@ -311,16 +308,16 @@ void consumo() {
 void enviar_ThinkSpeak(){
 
   // set the status
-  //ThingSpeak.setStatus(myStatus);
+ // ThingSpeak.setStatus(myStatus);
 
   // write to the ThingSpeak channel
-  //   int x = ThingSpeak.writeFields(canalNTCePressao, myWriteAPIKey);
-  //   if(x == 200){
-  //     Serial.println("Canal sensores NTC e pressão atualizado com sucesso.");
-  //   }
-  //   else{
-  //     Serial.println("Problema atualizando canal. HTTP error code " + String(x));
-  //   }
+     int x = ThingSpeak.writeFields(canalNTCePressao, myWriteAPIKey);
+     if(x == 200){
+       Serial.println("Canal sensores NTC e pressão atualizado com sucesso.");
+     }
+     else{
+       Serial.println("Problema atualizando canal. HTTP error code " + String(x));
+     }
 
   
   ///////////////////////////////////////////////////////////////////////////////////////////////////
