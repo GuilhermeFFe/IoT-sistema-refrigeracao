@@ -66,8 +66,8 @@ Adafruit_ADS1115 ads(0x48);  // cria instância do conversor analogico digital A
 
 PZEM004Tv30 pzem(&Serial2); //usa o Serial2 do hardwareserial, pinos instânciados no construtor, padrão, 16 RX e 17 TX
 
-  //  adc1_config_width(ADC_WIDTH_BIT_10);//Configura a resolucao
-  //adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_0);//Configura a atenuacao
+//unsigned int tempoAtual = 0;
+//unsigned int tempoAnterior = 0;
   
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// setup ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -97,6 +97,8 @@ void setup() {
   pzem.resetEnergy();
   pzem.setAddress(0x42);
 
+  verificarStatusWifi(); //conecta e reconecta no wifi
+
   Serial.println("Flag;Contador;T1;T2;T3;T4;T5;T6;pressaoBaixa;pressaoAlta;Watt;Tensao;Corrente;Fator Pot;Watt hora");
   //T1            float   °C    linha de sucção pouco após o evaporador, aprox. a meio caminho entre saída do evaporador e sucção do compressor A0(13)
   //T2            float   °C    temperatura de descarga, bem próximo do compressor A0(14)
@@ -107,7 +109,7 @@ void setup() {
   //pressaoAlta   float   bar   condensação pouco antes da entrada do filtro secador
   //W            W             potência instantânea consumida pelo compressor
   //dados extras:
-  //T6            float   °C    condensador meio do condensador D3
+  //T6            float   °C    atualmente no meio da caixa/evaporador
   //V             V             tensão aplicada ao compressor
   //I             A             corrente consumida pelo compressor
   //FP            float    -    fator de potência do compressor
@@ -122,13 +124,15 @@ void setup() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void loop() {
+
+  //tempoAnterior = millis(); // pra saber a média de tempo que leva entre as leituras
   
   dados = dados + String(flag) + ";";
   contador = contador + 1;
   dados = dados + String(contador) + ";";
 
 
-    verificarStatusWifi(); //conecta e reconecta no wifi
+  verificarStatusWifi(); //conecta e reconecta no wifi
  
   leituraNTC_digitais(); //leitura sensores digitais
   leituraNTC_analogicos(); //leitura sensores analógicos
@@ -156,10 +160,12 @@ void loop() {
   //mediaD = 0; //media dos NTCs digitais
   //mediaA = 0; //media dos NTCs analogicos
   
-  //enviar_ThinkSpeak();
+  enviar_ThinkSpeak();
    
   dados = "";
 
+  //tempoAtual = millis() - tempoAnterior; // pra saber a média de tempo que leva entre as leituras
+  //Serial.println(tempoAtual); // pra saber a média de tempo que leva entre as leituras
   //delay(1000);
 
 }
@@ -263,17 +269,17 @@ void leituraPressao() {
   pressaoBaixa = 0;
   i = 0;
   while (i < 50) {
-    pressaoBaixa = pressaoBaixa + ads.readADC_SingleEnded(1);
+    pressaoBaixa = pressaoBaixa + ads.readADC_SingleEnded(2);
     i++;
   }
   pressaoBaixa = pressaoBaixa / 50;
   pressaoBaixa = (pressaoBaixa * 0.1875) / 1000;
   pressaoBaixa = (pressaoBaixa * 10 - 6.6) / 2.64;
 
-  //  ThingSpeak.setField(7, pressaoAlta);
+    ThingSpeak.setField(7, pressaoAlta);
   //pressaoAlta = pressaoAlta * 14.504; //convertendo pra psi
 
-  //  ThingSpeak.setField(6, pressaoBaixa);
+    ThingSpeak.setField(8, pressaoBaixa);
 
   return;
 }
@@ -313,10 +319,10 @@ void enviar_ThinkSpeak(){
   // write to the ThingSpeak channel
      int x = ThingSpeak.writeFields(canalNTCePressao, myWriteAPIKey);
      if(x == 200){
-       Serial.println("Canal sensores NTC e pressão atualizado com sucesso.");
+       //Serial.println("Canal sensores NTC e pressão atualizado com sucesso.");
      }
      else{
-       Serial.println("Problema atualizando canal. HTTP error code " + String(x));
+       //Serial.println("Problema atualizando canal. HTTP error code " + String(x));
      }
 
   
