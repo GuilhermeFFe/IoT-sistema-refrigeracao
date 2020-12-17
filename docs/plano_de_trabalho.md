@@ -55,8 +55,7 @@
 
     * 1 - Raspberry pi 3B
     * 1 - ESP32 WROOM
-    * 3 - sensores NTC digitais DS18B20
-    * 3 - sensores NTC analógicos Full Gauge SB41 
+    * 9 - sensores NTC digitais DS18B20
     * 2 - transdutores de pressão GTP 1000 Gulton  4mAh 20mAh
     * 1 - Wattímetro PZEM-004T-v30-master
     * 1 - acelerômetro ADXL345 (ainda não instalado e não disponível no código atual)
