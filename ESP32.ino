@@ -1,30 +1,33 @@
-//#include <SoftwareSerial.h> //usado no Arduino e no NodeMCU, ESP32 não é compatível
-//#include <Thermistor.h> // NTC 10k, mas não está sendo usuado atualmente
 #include <OneWire.h> // NTC digital
 #include <DallasTemperature.h> // NTC digital
 #include "WiFi.h"
-#include "ThingSpeak.h"
 #include <PZEM004Tv30.h> // biblioteca do Wattímetro, já com a compatibilidade pra software serial ou hardware serial 
 #include "Wire.h" // biblioteca pra usar a comunicação I2C
 #include <driver/adc.h> // biblioteca para comandos das portas ADC da ESP32
 #include "HardwareSerial.h" //somente para a ESP32
 #include <Adafruit_ADS1015.h> // conversor ADC
+#include "cactus_io_BME280_I2C.h"
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+//#include <SPI.h>
 
-// conexões wifi e thingspeak
-const char* myWriteAPIKey = "1J8YCXRMT94MVBXH";     // Write API key do canal ThingSpeak
-unsigned int canalNTCePressao = 1202330; // canal dos NTCs e pressão
-unsigned int canalConsumoeVibracao = 1207951; // canal do Wattímetro e acelerômetro
+// conexões wifi
 const char* ssid =  "VIVOFIBRA-1650";     // Nome da rede WIFI
 const char* pass =  "6343CC203B"; // Senha do WIFI
-WiFiClient  client;
-const char* server = "api.thingspeak.com";
+const char* mqtt_server = "192.168.15.73"; // IP local da Raspberry
 
-String dados = "";
-unsigned int flag = 0;
-unsigned int contador = 0;
-float tempoAnterior = 0;
-float tempoAtual = 0;
-float tempo = 0;
+WiFiClient  WifiClient;
+PubSubClient client(WifiClient);
+
+// Dados pro MQTT 
+unsigned long tempoMsg = 0;
+#define MSG_BUFFER_SIZE  (384)
+char msg[MSG_BUFFER_SIZE];
+
+//testando JSON
+const int capacity = JSON_OBJECT_SIZE(384);
+StaticJsonDocument<capacity> doc;
+char dados[capacity];
 
 // Dados sensores NTC digitais ////////
 const int oneWireBus = 23; //porta que os NTCs digitais estão conectados
@@ -35,13 +38,13 @@ int ndispositivos = 0;
 // variável sensores
 float temp1; // sucção
 float temp2; // descarga
-float temp3; // linha líquido / filtro secador
+float temp3; // filtro secador
 float temp4; // entrada evaporador
 float temp5; // saída evaporador
-float temp6; // 
-float temp7; //
+float temp6; // linha líquido
+float temp7; // meio evaporador
 float temp8; // ambiente
-float temp9; // ambiente
+float temp9; // compressor
 float pressaoAlta;
 float pressaoBaixa;
 
@@ -73,7 +76,47 @@ void verificarStatusWifi() {
     }
     Serial.println("\nConnected.");
   }
+
+  randomSeed(micros()); // pra gerar um ID pro MQTT
+  
   return;
+}
+
+// receber mensagens do MQTT, subscriber
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+
+}
+
+// reconecta no broker mqtt
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Create a random client ID
+    String clientId = "ESP8266Client-";
+    clientId += String(random(0xffff), HEX);
+    // Attempt to connect
+    if (client.connect(clientId.c_str())) {
+      Serial.println("connected");
+      // Once connected, publish an announcement...
+      client.publish("outTopic", "hello world");
+      // ... and resubscribe
+      client.subscribe("inTopic");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
 }
 
 // leituras dos digitais ////////////////////////////////////////////////////////////////////////////////////////////
@@ -137,70 +180,26 @@ void leituraPressao() {
   pressaoBaixa = (pressaoBaixa * 0.1875) / 1000; // obter tensão
   pressaoBaixa = (pressaoBaixa * 10 - 6.6) / 2.64; // fórmula obtida fazendo uma matriz com 0 bar a 10 bar e 0,66V a 3.3V
 
-  ThingSpeak.setField(7, pressaoAlta);
   //pressaoAlta = pressaoAlta * 14.504; //convertendo pra psi
 
-  ThingSpeak.setField(8, pressaoBaixa);
-
   return;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void consumo() {
-
-  // Leitura do consumo energético
+// Leitura do consumo energético
+void consumo() { 
+  
   V = pzem.voltage();
-  //ThingSpeak.setField(1, volt);
 
   I = pzem.current();
-  //ThingSpeak.setField(2, cur);
 
   W = pzem.power();
-  //  ThingSpeak.setField(8, W);
 
   Wh = pzem.energy();
-  //ThingSpeak.setField(4, ener);
 
   Freq = pzem.frequency();
-  //ThingSpeak.setField(5, freq);
 
   FP = pzem.pf();
-  //ThingSpeak.setField(6, pf);
-
-  return;
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-// testes enviar dados pro ThingSpeak do canal dos sensores ///////////////////////////////////////
-void enviar_ThinkSpeak() {
-
-  // set the status
-  // ThingSpeak.setStatus(myStatus);
-
-  // write to the ThingSpeak channel
-  int x = ThingSpeak.writeFields(canalNTCePressao, myWriteAPIKey);
-  if (x == 200) {
-    //Serial.println("Canal sensores NTC e pressão atualizado com sucesso.");
-  }
-  else {
-    //Serial.println("Problema atualizando canal. HTTP error code " + String(x));
-  }
-
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////////
-  // testes enviar dados pro ThingSpeak do canal do consumo e acelerômetro //////////////////////////
-
-  // set the status
-  //ThingSpeak.setStatus(myStatus);
-
-  // write to the ThingSpeak channel
-  //   x = ThingSpeak.writeFields(canalConsumoeVibracao, myWriteAPIKey);
-  //   if(x == 200){
-  //     Serial.println("Canal consumo e  com sucesso.");
-  //   }
-  //   else{
-  //     Serial.println("Problema atualizando canal. HTTP error code " + String(x));
-  //   }
 
   return;
 }
@@ -213,7 +212,6 @@ void setup() {
   Serial.begin(9600);
 
   WiFi.mode(WIFI_STA); //Esta linha esconde a visualização do ESP como hotspot wifi
-  ThingSpeak.begin(client);
 
   // configuração e checagem dos NTC digitais
   sensortemp.begin();
@@ -231,7 +229,9 @@ void setup() {
 
   verificarStatusWifi(); //conecta e reconecta no wifi
 
-  Serial.println("Flag;Tempo;T1;T2;T3;T4;T5;T6;T7;T8;T9;pressaoBaixa;pressaoAlta;Watt;Tensao;Corrente;Fator Pot;Watt hora");
+  client.setBufferSize(385); //setar o tamanho do buffer do payload mqtt
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
 
 }
 
@@ -243,32 +243,47 @@ void loop() {
 
   verificarStatusWifi(); //conecta e reconecta no wifi
 
-  dados = dados + String(flag) + ";";
+  // conectar no broker mqtt
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  leituraNTC_digitais(); // leitura sensores digitais
+  leituraPressao(); // leitura transdutores de pressão
+  consumo(); // leitura wattímetro
+
+  //dados = dados + String(temp1) + ";" + String(temp2) + ";" + String(temp3) + ";" + String(temp4) + ";" + String(temp5) +
+  //        ";" + String(temp6) + ";" + String(temp7) + ";" + String(temp8) + ";" + String(temp9) + ";" + String(pressaoBaixa) + 
+  //        ";" + String(pressaoAlta) + ";" + String(W) + ";" + String(V) + ";" + String(I) + ";" + String(FP) + ";" + String(Wh);
+
+  doc["compressor"] = false;
+  doc["vent condensador"] = false;
+  doc["vent evaporador"] = false;
+  doc["succao"] = temp1;
+  doc["descarga"] = temp2;
+  doc["filtro secador"] = temp3;
+  doc["entrada evaporador"] = temp4;
+  doc["saida evaporador"] = temp5;
+  doc["linha liquido"] = temp6;
+  doc["meio evaporador"] = temp7;
+  doc["ambiente"] = temp8;
+  doc["compressor"] = temp9;
+  doc["pressao baixa"] = pressaoBaixa;
+  doc["pressao alta"] = pressaoAlta;
+  doc["potencia"] = W;
+  doc["tensao"] = V;
+  doc["corrente"] = I;
+  doc["fator potencia"] = FP;
+  doc["watt hora"] = Wh;
   
-  tempoAtual = millis(); // pra saber a média de tempo que leva entre as leituras
-  tempo = tempoAtual / 1000;
+  serializeJson(doc, dados);
 
-  dados = dados + String(tempo) + ";";
+  //serializeJson(doc, Serial);
 
-  leituraNTC_digitais(); //leitura sensores digitais
-  leituraPressao(); //leitura transdutores de pressão
-  consumo(); //wattímetro
-
-  dados = dados + String(temp1) + ";" + String(temp2) + ";" + String(temp3) + ";" + String(temp4) + ";" + String(temp5) +
-          ";" + String(temp6) + ";" + String(temp7) + ";" + String(temp8) + ";" + String(temp9) + ";" + String(pressaoBaixa) + 
-          ";" + String(pressaoAlta) + ";" + String(W) + ";" + String(V) + ";" + String(I) + ";" + String(FP) + ";" + String(Wh);
-
-  Serial.println(dados);
-
-  //enviar_ThinkSpeak();
-
-  dados = "";
-
+  client.publish("dados_refrig", dados); // envia o JSON pro tópico dados_refrig no broker MQTT no node-red
  
   //Serial.println(tempoAtual); // pra saber a média de tempo que leva entre as leituras
   //delay(1000);
 
 }
-// fim loop ///////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////
