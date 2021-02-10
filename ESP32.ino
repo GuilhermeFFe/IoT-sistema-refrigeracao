@@ -1,3 +1,4 @@
+
 #include <OneWire.h> // NTC digital
 #include <DallasTemperature.h> // NTC digital
 #include <PZEM004Tv30.h> // biblioteca do Wattímetro, já com a compatibilidade pra software serial ou hardware serial 
@@ -18,17 +19,22 @@
 const char* ssid =  "VIVOFIBRA-1650";     // Nome da rede WIFI
 const char* pass =  "6343CC203B"; // Senha do WIFI
 const char* mqtt_server = "192.168.15.73"; // IP local da Raspberry
+//const char* mqtt_server = "test.mosquitto.org"; // IP Guilherme da Raspberry
+
 
 //Parâmetros de rede
 //IPAddress local_ip(192, 168, 0, 121);
 //IPAddress gateway(192, 168, 0, 1);
 //IPAddress subnet(255, 255, 255, 0);
 const uint32_t PORTA = 5000; //A porta que será utilizada (padrão 80)
+//inicia o servidor na porta selecionada
+//aqui testamos na porta 5000, ao invés da 80 padrão
+WebServer server(PORTA);
 
 // Algumas informações que podem ser interessantes
 const uint32_t chipID = (uint32_t)(ESP.getEfuseMac() >> 32); // um ID exclusivo do Chip...
 const String CHIP_ID = "<p> Chip ID: " + String(chipID) + "</p>"; // montado para ser usado no HTML
-const String VERSION = "<p> Versão: 0.9 </p>"; // Exemplo de um controle de versão
+const String VERSION = "<p> Versão: 1.0 </p>"; // Exemplo de um controle de versão
 
 //Informações interessantes agrupadas
 const String INFOS = VERSION + CHIP_ID;
@@ -36,9 +42,7 @@ const String INFOS = VERSION + CHIP_ID;
 //Sinalizador de autorização do OTA
 boolean OTA_AUTORIZADO = false;
 
-//inicia o servidor na porta selecionada
-//aqui testamos na porta 5000, ao invés da 80 padrão
-WebServer server(PORTA);
+
 
 //Páginas HTML utilizadas no procedimento OTA
 String verifica = "<!DOCTYPE html><html><head><title>ESP32 webOTA</title><meta charset='UTF-8'></head><body><h1>ESP32 webOTA</h1><h2>Digite a chave de verificação.<p>Clique em ok para continuar. . .</p></h2>" + INFOS + "<form method='POST' action='/avalia 'enctype='multipart/form-data'> <p><label>Autorização: </label><input type='text' name='autorizacao'></p><input type='submit' value='Ok'></form></body></html>";
@@ -49,15 +53,17 @@ String Resultado_Falha = "<!DOCTYPE html><html><head><title>ESP32 webOTA</title>
 WiFiClient  WifiClient;
 PubSubClient client(WifiClient);
 
-// Dados pro MQTT 
+// Dados pro MQTT
 unsigned long tempoMsg = 0;
 #define MSG_BUFFER_SIZE  (500)
-char msg[MSG_BUFFER_SIZE];
 
 //testando JSON
 const int capacity = JSON_OBJECT_SIZE(MSG_BUFFER_SIZE);
-StaticJsonDocument<capacity> doc;
-char dados[capacity];
+//StaticJsonDocument<capacity> doc;
+DynamicJsonDocument doc(capacity);
+DynamicJsonDocument comandos(100);
+char dados[capacity]; // dados serializados pra enviar pro broker mqtt
+char comandos_recebidos[100]; // dados que serão recebidos do broker mqtt pros comandos do compressor e exaustores/coolers/ventiladores
 
 // Dados sensores NTC digitais ////////
 const int oneWireBus = 23; //porta que os NTCs digitais estão conectados
@@ -89,11 +95,17 @@ float Wh;  // Watt hora
 //conversor para os sensores de pressao
 Adafruit_ADS1115 ads(0x48);  // cria instância do conversor analogico digital ADC */
 
+// criando objeto do wattímetro
 PZEM004Tv30 pzem(&Serial2); //usa o Serial2 do hardwareserial, pinos instânciados no construtor, padrão, 16 RX e 17 TX
 
+unsigned int tempoLoopDesligado = 600000;
 unsigned int tempoAtual = 0;
 unsigned int tempoAnterior = 0;
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// inicio funções
 void verificarStatusWifi() {
 
   if (WiFi.status() != WL_CONNECTED) {
@@ -110,33 +122,33 @@ void verificarStatusWifi() {
     Serial.println("\nConnected.");
   }
 
-  
+
   return;
 }
 
-void atualizacao_OTA(){
+void atualizacao_OTA() {
 
-  if (WiFi.status() == WL_CONNECTED){ //aguarda a conexão
-  
+  if (WiFi.status() == WL_CONNECTED) { //aguarda a conexão
+
     //atende uma solicitação para a raiz
     // e devolve a página 'verifica'
-    server.on("/", HTTP_GET, [](){ //atende uma solicitação para a raiz   
+    server.on("/", HTTP_GET, []() { //atende uma solicitação para a raiz
       server.sendHeader("Connection", "close");
       server.send(200, "text/html", verifica);
     });
 
     //atende uma solicitação para a página avalia
-    server.on("/avalia", HTTP_POST, [] (){
+    server.on("/avalia", HTTP_POST, [] () {
       Serial.println("Em server.on /avalia: args= " + String(server.arg("autorizacao"))); //somente para debug
 
-      if (server.arg("autorizacao") != "projetoIFSC"){// confere se o dado de autorização atende a avaliação
-      
+      if (server.arg("autorizacao") != "projetoIFSC") { // confere se o dado de autorização atende a avaliação
+
         //se não atende, serve a página indicando uma falha
         server.sendHeader("Connection", "close");
         server.send(200, "text/html", Resultado_Falha);
         //ESP.restart();
       }
-      else{      
+      else {
         //se atende, solicita a página de índice do servidor
         // e sinaliza que o OTA está autorizado
         OTA_AUTORIZADO = true;
@@ -147,16 +159,16 @@ void atualizacao_OTA(){
 
     //serve a página de indice do servidor
     //para seleção do arquivo
-    server.on("/serverIndex", HTTP_GET, [](){
+    server.on("/serverIndex", HTTP_GET, []() {
       server.sendHeader("Connection", "close");
       server.send(200, "text/html", serverIndex);
     });
 
     //tenta iniciar a atualização . . .
-    server.on("/update", HTTP_POST, [](){
+    server.on("/update", HTTP_POST, []() {
       //verifica se a autorização é false.
       //Se for falsa, serve a página de erro e cancela o processo.
-      if (OTA_AUTORIZADO == false){
+      if (OTA_AUTORIZADO == false) {
         server.sendHeader("Connection", "close");
         server.send(200, "text/html", Resultado_Falha);
         return;
@@ -166,35 +178,35 @@ void atualizacao_OTA(){
       server.send(200, "text/html", (Update.hasError()) ? Resultado_Falha : Resultado_Ok);
       delay(1000);
       ESP.restart();
-    }, [](){
+    }, []() {
       //Mas estiver autorizado, inicia a atualização
       HTTPUpload& upload = server.upload();
-      if (upload.status == UPLOAD_FILE_START){
+      if (upload.status == UPLOAD_FILE_START) {
         Serial.setDebugOutput(true);
         Serial.printf("Atualizando: %s\n", upload.filename.c_str());
-        if (!Update.begin()){
+        if (!Update.begin()) {
           //se a atualização não iniciar, envia para serial mensagem de erro.
           Update.printError(Serial);
         }
       }
-      else if (upload.status == UPLOAD_FILE_WRITE){
-        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize){
+      else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
           //se não conseguiu escrever o arquivo, envia erro para serial
           Update.printError(Serial);
         }
       }
-      else if (upload.status == UPLOAD_FILE_END){
-        if (Update.end(true)){
+      else if (upload.status == UPLOAD_FILE_END) {
+        if (Update.end(true)) {
           //se finalizou a atualização, envia mensagem para a serial informando
           Serial.printf("Atualização bem sucedida! %u\nReiniciando...\n", upload.totalSize);
         }
-        else{
+        else {
           //se não finalizou a atualização, envia o erro para a serial.
           Update.printError(Serial);
         }
         Serial.setDebugOutput(false);
       }
-      else{
+      else {
         //se não conseguiu identificar a falha no processo, envia uma mensagem para a serial
         Serial.printf("Atualização falhou inesperadamente! (possivelmente a conexão foi perdida.): status=%d\n", upload.status);
       }
@@ -208,7 +220,7 @@ void atualizacao_OTA(){
     Serial.print("Servidor em: ");
     Serial.println( WiFi.localIP().toString() + ":" + PORTA);
   }
-  else{
+  else {
     //avisa se não onseguir conectar no WiFi
     Serial.println("Falha ao conectar ao WiFi.");
   }
@@ -220,9 +232,17 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print(topic);
   Serial.print("] ");
   for (int i = 0; i < length; i++) {
+    comandos_recebidos[i] = payload[i];
     Serial.print((char)payload[i]);
   }
   Serial.println();
+
+  deserializeJson(comandos, comandos_recebidos);
+
+  //const char* sensor = doc["sensor"];
+  //long time          = doc["time"];
+  //double latitude    = doc["data"][0];
+  //double longitude   = doc["data"][1];
 
 }
 
@@ -238,13 +258,13 @@ void reconnect() {
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
       // Once connected, publish an announcement...
-      client.publish("outTopic", "hello world");
+      //client.publish("outTopic", "hello world");
       // ... and resubscribe
-      client.subscribe("inTopic");
+      client.subscribe("comandos");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
+      Serial.println("tentando novamente em  5 segundos");
       // Wait 5 seconds before retrying
       delay(5000);
     }
@@ -300,7 +320,7 @@ void leituraPressao() {
   }
   pressaoAlta = pressaoAlta / 50; // tira a média das 50 leituras
   pressaoAlta = (pressaoAlta * 0.1875) / 1000; // obter tensão
-  pressaoAlta = (pressaoAlta * 30 - 19.8) / 2.64; // fórmula obtida fazendo uma matriz com 0 bar a 30 bar e 0,66V a 3.3V
+  pressaoAlta = (pressaoAlta * 30 - 21.8) / 2.64; // fórmula obtida fazendo uma matriz com 0 bar a 30 bar e 0,66V a 3.3V. Valor do 21.8 na formula é 19.8, foi acrescentado 1 para correção das variações e ficar o mesmo valor do manômetro
 
   pressaoBaixa = 0;
   i = 0;
@@ -319,20 +339,48 @@ void leituraPressao() {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Leitura do consumo energético
-void consumo() { 
-  
+void consumo() {
+
   V = pzem.voltage();
-
   I = pzem.current();
-
   W = pzem.power();
-
   Wh = pzem.energy();
-
   Freq = pzem.frequency();
-
   FP = pzem.pf();
 
+  return;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Controle dos comandos recebidos pelo mqtt. Liga/desliga compressor, exaustores
+void controle() {
+  //comando:  {"compressor":false,"vent_evaporador":false,"vent_condensador":false}
+
+  if (comandos["compressor"] == false) {
+    doc["motor"] = false;
+    digitalWrite(5, LOW);
+    Serial.println("compressor desligado");
+  } else {
+    doc["motor"] = true;
+    digitalWrite(5, HIGH);
+    Serial.println("compressor ligado");
+  }
+  
+  if (comandos["vent_evaporador"] == false) {
+    doc["vent evaporador"] = false;
+    digitalWrite(18, LOW);
+  } else {
+    doc["vent evaporador"] = true;
+    digitalWrite(18, HIGH);
+  }
+  
+  if (comandos["vent_condensador"] == false) {
+    doc["vent condensador"] = false;
+    digitalWrite(19, LOW);
+  } else {
+    doc["vent condensador"] = true;
+    digitalWrite(19, HIGH);
+  }
   return;
 }
 
@@ -343,13 +391,27 @@ void setup() {
 
   Serial.begin(115200);
 
-  
-  WiFi.mode(WIFI_STA); // Esta linha esconde a visualização do ESP como hotspot wifi
-  //WiFi.mode(WIFI_AP_STA); // Comfigura o ESP32 como ponto de acesso e estação
+  pinMode(5, OUTPUT);
+  pinMode(18, OUTPUT);
+  pinMode(19, OUTPUT);
+  digitalWrite(5, LOW);
+  digitalWrite(18, LOW);
+  digitalWrite(19, LOW);
+  // seta por padrao o compressor e exaustores para desligado/off toda vez que a ESP inicializa
+  comandos["compressor"] = false;
+  comandos["vent_evaporador"] = false;
+  comandos["vent_condensador"] = false;
+  doc["motor"] = false;
+  doc["vent condensador"] = false;
+  doc["vent evaporador"] = false;
+  controle();
+
+  //WiFi.mode(WIFI_STA); // Esta linha esconde a visualização do ESP como hotspot wifi
+  WiFi.mode(WIFI_AP_STA); // Comfigura o ESP32 como ponto de acesso e estação
 
   // configuração e checagem dos NTC digitais
   sensortemp.begin();
-  Serial.println("Localizando Dispositivos ...");
+  Serial.println("Localizando sensores de temperatura ...");
   Serial.print("Encontrados ");
   ndispositivos = sensortemp.getDeviceCount();
   Serial.print(ndispositivos, DEC);
@@ -377,38 +439,66 @@ void setup() {
 
 void loop() {
 
-  tempoAnterior = millis();
-  
+  tempoAnterior = millis(); // para verificação do tempo que leva no loop
+
+  //comando:  {"compressor":false,"vent_evaporador":false,"vent_condensador":false}
+  // loop para ficar "dormindo" quando o sistema não coleta dados, baseado no compressor, se estiver desligado, entra no loop
+  while (comandos["compressor"] == false) {
+    tempoAtual = millis();
+    tempoAtual = tempoAtual - tempoAnterior;
+    if (tempoAtual > tempoLoopDesligado) break; // fica preso no loop o tempo definido pra só depois enviar os dados, como um delay, mas mantendo ativo as funções de mqtt, OTA e wifi
+
+    verificarStatusWifi(); //conecta e reconecta no wifi
+
+    //manipula clientes conectados
+    server.handleClient();
+
+    // conectar no broker mqtt
+    if (!client.connected()) {
+      reconnect();
+    }
+    client.loop();
+    Serial.println("loop controle compressor");
+
+    controle();
+
+    delay(2000);
+  }
+
   verificarStatusWifi(); //conecta e reconecta no wifi
 
-  //manipula clientes conectados
-  server.handleClient();
+  server.handleClient(); //manipula clientes conectados
 
-  // conectar no broker mqtt
   if (!client.connected()) {
-    reconnect();
+    reconnect(); // conectar no broker mqtt
   }
   client.loop();
+
+  controle(); // função de verificação dos comandos do compressor e exaustores, enviados pelo subscriber mqtt
 
   leituraNTC_digitais(); // leitura sensores digitais
   leituraPressao(); // leitura transdutores de pressão
   consumo(); // leitura wattímetro
 
   //dados = dados + String(temp1) + ";" + String(temp2) + ";" + String(temp3) + ";" + String(temp4) + ";" + String(temp5) +
-  //        ";" + String(temp6) + ";" + String(temp7) + ";" + String(temp8) + ";" + String(temp9) + ";" + String(pressaoBaixa) + 
+  //        ";" + String(temp6) + ";" + String(temp7) + ";" + String(temp8) + ";" + String(temp9) + ";" + String(pressaoBaixa) +
   //        ";" + String(pressaoAlta) + ";" + String(W) + ";" + String(V) + ";" + String(I) + ";" + String(FP) + ";" + String(Wh);
 
   // condição caso o wattímetro esteja desligado, substituí o nan (null no json recebido pelo node-red) por 0 pra poder armazenar no influxDB
-  if(isnan(W)) W = 0;
-  if(isnan(V)) V = 0;
-  if(isnan(I)) I = 0;
-  if(isnan(FP)) FP = 0;
-  if(isnan(Wh)) Wh = 0;
-  
+  if (isnan(W)) W = 0;
+  if (isnan(V)) V = 0;
+  if (isnan(I)) I = 0;
+  if (isnan(FP)) FP = 0;
+  if (isnan(Wh)) Wh = 0;
+  if (isnan(Freq)) Freq = 0;
+
+  if (doc["pressao baixa"] < 0) doc["pressao baixa"] = 0;
+  if (doc["pressao alta"] < 0) doc["pressao alta"] = 0;
+
   // JSON
-  doc["motor"] = false;
-  doc["vent condensador"] = false;
-  doc["vent evaporador"] = false;
+//  doc["motor"] = false;
+//  doc["vent condensador"] = false;
+//  doc["vent evaporador"] = false;
   doc["succao"] = temp1;
   doc["descarga"] = temp2;
   doc["filtro secador"] = temp3;
@@ -425,16 +515,16 @@ void loop() {
   doc["corrente"] = I;
   doc["fator potencia"] = FP;
   doc["watt hora"] = Wh;
-  
-  serializeJson(doc, dados);
+  doc["frequencia"] = Freq;
 
-  //serializeJson(doc, Serial);
+  serializeJson(doc, dados); // serializa em "texto" os dados Json para ser enviado pelo mqtt
+
+  //serializeJson(doc, Serial); // para imprimir
 
   client.publish("dados_refrig", dados); // envia o JSON pro tópico dados_refrig no broker MQTT no node-red
 
   tempoAtual = millis();
   tempoAtual = tempoAtual - tempoAnterior;
   Serial.println(tempoAtual); // pra saber a média de tempo que leva entre as leituras
-  //delay(1000);
 
 }
