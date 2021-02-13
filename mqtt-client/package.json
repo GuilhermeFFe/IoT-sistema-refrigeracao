@@ -6,11 +6,12 @@
   "main": "index.js",
   "scripts": {
     "prestart": "tsc",
-    "start": "node build/index.js"
+    "start": "node build/index.js --trace-warnings"
   },
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "influx": "^5.7.0",
     "mqtt": "^4.2.6"
   },
   "devDependencies": {
