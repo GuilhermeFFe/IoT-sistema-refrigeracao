@@ -1,4 +1,3 @@
-
 #include <OneWire.h> // NTC digital
 #include <DallasTemperature.h> // NTC digital
 #include <PZEM004Tv30.h> // biblioteca do Wattímetro, já com a compatibilidade pra software serial ou hardware serial 
@@ -34,7 +33,7 @@ WebServer server(PORTA);
 // Algumas informações que podem ser interessantes
 const uint32_t chipID = (uint32_t)(ESP.getEfuseMac() >> 32); // um ID exclusivo do Chip...
 const String CHIP_ID = "<p> Chip ID: " + String(chipID) + "</p>"; // montado para ser usado no HTML
-const String VERSION = "<p> Versão: 1.0 </p>"; // Exemplo de um controle de versão
+const String VERSION = "<p> Versão 1.1 fórmulas teóricas otimizadas </p>"; // Exemplo de um controle de versão
 
 //Informações interessantes agrupadas
 const String INFOS = VERSION + CHIP_ID;
@@ -83,6 +82,10 @@ float temp8; // ambiente
 float temp9; // compressor
 float pressaoAlta;
 float pressaoBaixa;
+
+float Temp_Ev_calc;
+float Temp_Cd_calc;
+float Pot_teorica;
 
 // Wattímetro, consumo do compressor
 float W;   // Consumo
@@ -320,7 +323,7 @@ void leituraPressao() {
   }
   pressaoAlta = pressaoAlta / 50; // tira a média das 50 leituras
   pressaoAlta = (pressaoAlta * 0.1875) / 1000; // obter tensão
-  pressaoAlta = (pressaoAlta * 30 - 21.8) / 2.64; // fórmula obtida fazendo uma matriz com 0 bar a 30 bar e 0,66V a 3.3V. Valor do 21.8 na formula é 19.8, foi acrescentado 1 para correção das variações e ficar o mesmo valor do manômetro
+  pressaoAlta = (pressaoAlta * 30 - 19.8) / 2.64; // fórmula obtida fazendo uma matriz com 0 bar a 30 bar e 0,66V a 3.3V. Valor do 21.8 na formula é 19.8, foi acrescentado 1 para correção das variações e ficar o mesmo valor do manômetro
 
   pressaoBaixa = 0;
   i = 0;
@@ -358,30 +361,53 @@ void controle() {
 
   if (comandos["compressor"] == false) {
     doc["motor"] = false;
-    digitalWrite(5, LOW);
+    digitalWrite(5, HIGH);
     Serial.println("compressor desligado");
   } else {
     doc["motor"] = true;
-    digitalWrite(5, HIGH);
+    digitalWrite(5, LOW);
     Serial.println("compressor ligado");
   }
   
   if (comandos["vent_evaporador"] == false) {
     doc["vent evaporador"] = false;
-    digitalWrite(18, LOW);
+    digitalWrite(18, HIGH);
   } else {
     doc["vent evaporador"] = true;
-    digitalWrite(18, HIGH);
+    digitalWrite(18, LOW);
   }
   
   if (comandos["vent_condensador"] == false) {
     doc["vent condensador"] = false;
-    digitalWrite(19, LOW);
+    digitalWrite(19, HIGH);
   } else {
     doc["vent condensador"] = true;
-    digitalWrite(19, HIGH);
+    digitalWrite(19, LOW);
   }
   return;
+}
+
+void calculosTeoricos(){
+
+//Temp_Ev_calc = -59,9235 + 47,7325*P_EVexp - 17,8049*P_EVexp^2 + 3,86138*P_EVexp^3 - 0,329592*P_EVexp^4
+// formula original:  Temp_Ev_calc =  -59.9235 + 47.7325 * (pressaoBaixa + 1.015) - 17.8049 * pow((pressaoBaixa+1.015),2) + 3.86138 * pow((pressaoBaixa+1.015),3) - 0.329592 * pow((pressaoBaixa+1.015),4);
+Temp_Ev_calc =  -59.9235 + 47.7325 * (pressaoBaixa + 1.015) - 17.8049 * ((pressaoBaixa+1.015)*(pressaoBaixa+1.015)) + 3.86138 * ((pressaoBaixa+1.015)*(pressaoBaixa+1.015)*(pressaoBaixa+1.015)) 
+- 0.329592 * ((pressaoBaixa+1.015)*(pressaoBaixa+1.015)*(pressaoBaixa+1.015)*(pressaoBaixa+1.015));
+
+
+//T_CDcalc = -26,6328 + 11,3174*P_CDexp - 0,691216*P_CDexp^2 + 0,0259686*P_CDexp^3 - 0,000396834*P_CDexp^4
+// formula original:  Temp_Cd_calc =  -26.6328 + 11.3174 * (pressaoAlta +1.015) - 0.691216 * pow((pressaoAlta+1.015),2) + 0.0259686 * pow((pressaoAlta+1.015),3) - 0.000396834 * pow((pressaoAlta+1.015),4);
+Temp_Cd_calc =  -26.6328 + 11.3174 * (pressaoAlta +1.015) - 0.691216 * ((pressaoAlta+1.015)*(pressaoAlta+1.015)) + 0.0259686 * ((pressaoAlta+1.015)*(pressaoAlta+1.015)*(pressaoAlta+1.015)) 
+- 0.000396834 * ((pressaoAlta+1.015)*(pressaoAlta+1.015)*(pressaoAlta+1.015)*(pressaoAlta+1.015));
+
+//Pot_CPcalc1=8,24941434E+01-5,37328089E-01*T_EVexp-6,26019814E-02*T_EVexp^2-4,33566434E-04*T_EVexp^3+9,41134033E-01*T_CDexp+3,47902098E-03*T_CDexp^2-1,51515151E-05*T_CDexp^3+3,84205128E-02*T_EVexp*T_CDexp+4,07342657E-04*T_EVexp*T_CDexp^2+1,05920745E-03*T_EVexp^2*T_CDexp+1,04895104E-06*T_EVexp^2*T_CDexp^2
+// formula original:  Pot_teorica = 82.4941434 - 0.537328089 * temp4 - 0.0626019814 * pow(temp4,2) - 0.000433566434 * pow(temp4,3) + 0.941134033 * temp3 + 0.00347902098 * pow(temp3,2) - 0.0000151515151 * 
+//                pow(temp3,3) + 0.0384205128 * temp4 * temp3 + 0.000407342657 * temp4 * pow(temp3,2) + 0.00105920745 * pow(temp4,2) * temp3 + 0.00000104895104 * pow(temp4,2) * pow(temp3,2);
+
+Pot_teorica = 82.4941434 - 0.537328089 * temp4 - 0.0626019814 * (temp4 * temp4) - 0.000433566434 * (temp4 * temp4 * temp4) + 0.941134033 * temp3 + 0.00347902098 * (temp3 * temp3) - 0.0000151515151 * 
+                (temp3 * temp3 * temp3) + 0.0384205128 * temp4 * temp3 + 0.000407342657 * temp4 * (temp3 * temp3) + 0.00105920745 * (temp4 * temp4) * temp3 + 0.00000104895104 * (temp4 * temp4) * 
+                (temp3 * temp3);
+                
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -394,9 +420,9 @@ void setup() {
   pinMode(5, OUTPUT);
   pinMode(18, OUTPUT);
   pinMode(19, OUTPUT);
-  digitalWrite(5, LOW);
-  digitalWrite(18, LOW);
-  digitalWrite(19, LOW);
+  digitalWrite(5, HIGH);
+  digitalWrite(18, HIGH);
+  digitalWrite(19, HIGH);
   // seta por padrao o compressor e exaustores para desligado/off toda vez que a ESP inicializa
   comandos["compressor"] = false;
   comandos["vent_evaporador"] = false;
@@ -479,6 +505,7 @@ void loop() {
   leituraNTC_digitais(); // leitura sensores digitais
   leituraPressao(); // leitura transdutores de pressão
   consumo(); // leitura wattímetro
+  
 
   //dados = dados + String(temp1) + ";" + String(temp2) + ";" + String(temp3) + ";" + String(temp4) + ";" + String(temp5) +
   //        ";" + String(temp6) + ";" + String(temp7) + ";" + String(temp8) + ";" + String(temp9) + ";" + String(pressaoBaixa) +
@@ -516,6 +543,12 @@ void loop() {
   doc["fator potencia"] = FP;
   doc["watt hora"] = Wh;
   doc["frequencia"] = Freq;
+
+  calculosTeoricos(); // calcula T3, T4 e Pot, teoricamente, pra comparar com o medido no sistema.
+
+  doc["Temp_Ev_calc"] = Temp_Ev_calc;
+  doc["Temp_Cd_calc"] = Temp_Cd_calc;
+  doc["Pot_teorica"] = Pot_teorica;
 
   serializeJson(doc, dados); // serializa em "texto" os dados Json para ser enviado pelo mqtt
 
