@@ -17,7 +17,7 @@
 // conexões wifi
 const char* ssid =  "VIVOFIBRA-1650";     // Nome da rede WIFI
 const char* pass =  "6343CC203B"; // Senha do WIFI
-const char* mqtt_server = "192.168.15.73"; // IP local da Raspberry
+const char* mqtt_server = "192.168.15.105"; // IP local da Raspberry
 //const char* mqtt_server = "test.mosquitto.org"; // IP Guilherme da Raspberry
 
 
@@ -33,7 +33,7 @@ WebServer server(PORTA);
 // Algumas informações que podem ser interessantes
 const uint32_t chipID = (uint32_t)(ESP.getEfuseMac() >> 32); // um ID exclusivo do Chip...
 const String CHIP_ID = "<p> Chip ID: " + String(chipID) + "</p>"; // montado para ser usado no HTML
-const String VERSION = "<p> Versão 1.1 fórmulas teóricas otimizadas </p>"; // Exemplo de um controle de versão
+const String VERSION = "<p> Versão 1.12 fórmulas teóricas otimizadas </p>"; // Exemplo de um controle de versão
 
 //Informações interessantes agrupadas
 const String INFOS = VERSION + CHIP_ID;
