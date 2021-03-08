@@ -20,7 +20,6 @@ const char* pass =  "6343CC203B"; // Senha do WIFI
 const char* mqtt_server = "192.168.15.105"; // IP local da Raspberry
 //const char* mqtt_server = "test.mosquitto.org"; // IP Guilherme da Raspberry
 
-
 //Parâmetros de rede
 //IPAddress local_ip(192, 168, 0, 121);
 //IPAddress gateway(192, 168, 0, 1);
@@ -33,15 +32,13 @@ WebServer server(PORTA);
 // Algumas informações que podem ser interessantes
 const uint32_t chipID = (uint32_t)(ESP.getEfuseMac() >> 32); // um ID exclusivo do Chip...
 const String CHIP_ID = "<p> Chip ID: " + String(chipID) + "</p>"; // montado para ser usado no HTML
-const String VERSION = "<p> Versão 1.12 fórmulas teóricas otimizadas </p>"; // Exemplo de um controle de versão
+const String VERSION = "<p> Versão 1.2 JSON reduzido e loop MQTT corrigido </p>"; // Exemplo de um controle de versão
 
 //Informações interessantes agrupadas
 const String INFOS = VERSION + CHIP_ID;
 
 //Sinalizador de autorização do OTA
 boolean OTA_AUTORIZADO = false;
-
-
 
 //Páginas HTML utilizadas no procedimento OTA
 String verifica = "<!DOCTYPE html><html><head><title>ESP32 webOTA</title><meta charset='UTF-8'></head><body><h1>ESP32 webOTA</h1><h2>Digite a chave de verificação.<p>Clique em ok para continuar. . .</p></h2>" + INFOS + "<form method='POST' action='/avalia 'enctype='multipart/form-data'> <p><label>Autorização: </label><input type='text' name='autorizacao'></p><input type='submit' value='Ok'></form></body></html>";
@@ -242,11 +239,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   deserializeJson(comandos, comandos_recebidos);
 
-  //const char* sensor = doc["sensor"];
-  //long time          = doc["time"];
-  //double latitude    = doc["data"][0];
-  //double longitude   = doc["data"][1];
-
 }
 
 // reconecta no broker mqtt
@@ -255,7 +247,7 @@ void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Create a random client ID
-    String clientId = "ESP8266Client-";
+    String clientId = "ESP32Client-";
     clientId += String(random(0xffff), HEX);
     // Attempt to connect
     if (client.connect(clientId.c_str())) {
@@ -267,9 +259,10 @@ void reconnect() {
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
-      Serial.println("tentando novamente em  5 segundos");
+      Serial.println(" Retornando para o loop");
       // Wait 5 seconds before retrying
-      delay(5000);
+      delay(1000);
+      loop();
     }
   }
 }
@@ -281,32 +274,14 @@ void leituraNTC_digitais() {
   sensortemp.requestTemperatures();
 
   temp1 = sensortemp.getTempCByIndex(0);
-  //Serial.print("1: ");
-  //Serial.println(temp1);
   temp2 = sensortemp.getTempCByIndex(1);
-  //Serial.print("2: ");
-  //Serial.println(temp2);
   temp3 = sensortemp.getTempCByIndex(2);
-  //Serial.print("3: ");
-  //Serial.println(temp3);
   temp4 = sensortemp.getTempCByIndex(3);
-  //Serial.print("4: ");
-  //Serial.println(temp4);
   temp5 = sensortemp.getTempCByIndex(4);
-  //Serial.print("5: ");
-  //Serial.println(temp5);
   temp6 = sensortemp.getTempCByIndex(5);
-  //Serial.print("6: ");
-  //Serial.println(temp6);
   temp7 = sensortemp.getTempCByIndex(6);
-  //Serial.print("7: ");
-  //Serial.println(temp7);
   temp8 = sensortemp.getTempCByIndex(7);
-  //Serial.print("8: ");
-  //Serial.println(temp8);
   temp9 = sensortemp.getTempCByIndex(8);
-  //Serial.print("9: ");
-  //Serial.println(temp9);
 
   return;
 }
@@ -359,55 +334,55 @@ void consumo() {
 void controle() {
   //comando:  {"compressor":false,"vent_evaporador":false,"vent_condensador":false}
 
-  if (comandos["compressor"] == false) {
-    doc["motor"] = false;
+  if (comandos["cc"] == false) {
+    doc["m"] = false;
     digitalWrite(5, HIGH);
     Serial.println("compressor desligado");
   } else {
-    doc["motor"] = true;
+    doc["m"] = true;
     digitalWrite(5, LOW);
     Serial.println("compressor ligado");
   }
-  
-  if (comandos["vent_evaporador"] == false) {
-    doc["vent evaporador"] = false;
+
+  if (comandos["cve"] == false) {
+    doc["ve"] = false;
     digitalWrite(18, HIGH);
   } else {
-    doc["vent evaporador"] = true;
+    doc["ve"] = true;
     digitalWrite(18, LOW);
   }
-  
-  if (comandos["vent_condensador"] == false) {
-    doc["vent condensador"] = false;
+
+  if (comandos["cvc"] == false) {
+    doc["vc"] = false;
     digitalWrite(19, HIGH);
   } else {
-    doc["vent condensador"] = true;
+    doc["vc"] = true;
     digitalWrite(19, LOW);
   }
   return;
 }
 
-void calculosTeoricos(){
+void calculosTeoricos() {
 
-//Temp_Ev_calc = -59,9235 + 47,7325*P_EVexp - 17,8049*P_EVexp^2 + 3,86138*P_EVexp^3 - 0,329592*P_EVexp^4
-// formula original:  Temp_Ev_calc =  -59.9235 + 47.7325 * (pressaoBaixa + 1.015) - 17.8049 * pow((pressaoBaixa+1.015),2) + 3.86138 * pow((pressaoBaixa+1.015),3) - 0.329592 * pow((pressaoBaixa+1.015),4);
-Temp_Ev_calc =  -59.9235 + 47.7325 * (pressaoBaixa + 1.015) - 17.8049 * ((pressaoBaixa+1.015)*(pressaoBaixa+1.015)) + 3.86138 * ((pressaoBaixa+1.015)*(pressaoBaixa+1.015)*(pressaoBaixa+1.015)) 
-- 0.329592 * ((pressaoBaixa+1.015)*(pressaoBaixa+1.015)*(pressaoBaixa+1.015)*(pressaoBaixa+1.015));
+  //Temp_Ev_calc = -59,9235 + 47,7325*P_EVexp - 17,8049*P_EVexp^2 + 3,86138*P_EVexp^3 - 0,329592*P_EVexp^4
+  // formula original:  Temp_Ev_calc =  -59.9235 + 47.7325 * (pressaoBaixa + 1.015) - 17.8049 * pow((pressaoBaixa+1.015),2) + 3.86138 * pow((pressaoBaixa+1.015),3) - 0.329592 * pow((pressaoBaixa+1.015),4);
+  Temp_Ev_calc =  -59.9235 + 47.7325 * (pressaoBaixa + 1.015) - 17.8049 * ((pressaoBaixa + 1.015) * (pressaoBaixa + 1.015)) + 3.86138 * ((pressaoBaixa + 1.015) * (pressaoBaixa + 1.015) * (pressaoBaixa + 1.015))
+                  - 0.329592 * ((pressaoBaixa + 1.015) * (pressaoBaixa + 1.015) * (pressaoBaixa + 1.015) * (pressaoBaixa + 1.015));
 
 
-//T_CDcalc = -26,6328 + 11,3174*P_CDexp - 0,691216*P_CDexp^2 + 0,0259686*P_CDexp^3 - 0,000396834*P_CDexp^4
-// formula original:  Temp_Cd_calc =  -26.6328 + 11.3174 * (pressaoAlta +1.015) - 0.691216 * pow((pressaoAlta+1.015),2) + 0.0259686 * pow((pressaoAlta+1.015),3) - 0.000396834 * pow((pressaoAlta+1.015),4);
-Temp_Cd_calc =  -26.6328 + 11.3174 * (pressaoAlta +1.015) - 0.691216 * ((pressaoAlta+1.015)*(pressaoAlta+1.015)) + 0.0259686 * ((pressaoAlta+1.015)*(pressaoAlta+1.015)*(pressaoAlta+1.015)) 
-- 0.000396834 * ((pressaoAlta+1.015)*(pressaoAlta+1.015)*(pressaoAlta+1.015)*(pressaoAlta+1.015));
+  //T_CDcalc = -26,6328 + 11,3174*P_CDexp - 0,691216*P_CDexp^2 + 0,0259686*P_CDexp^3 - 0,000396834*P_CDexp^4
+  // formula original:  Temp_Cd_calc =  -26.6328 + 11.3174 * (pressaoAlta +1.015) - 0.691216 * pow((pressaoAlta+1.015),2) + 0.0259686 * pow((pressaoAlta+1.015),3) - 0.000396834 * pow((pressaoAlta+1.015),4);
+  Temp_Cd_calc =  -26.6328 + 11.3174 * (pressaoAlta + 1.015) - 0.691216 * ((pressaoAlta + 1.015) * (pressaoAlta + 1.015)) + 0.0259686 * ((pressaoAlta + 1.015) * (pressaoAlta + 1.015) * (pressaoAlta + 1.015))
+                  - 0.000396834 * ((pressaoAlta + 1.015) * (pressaoAlta + 1.015) * (pressaoAlta + 1.015) * (pressaoAlta + 1.015));
 
-//Pot_CPcalc1=8,24941434E+01-5,37328089E-01*T_EVexp-6,26019814E-02*T_EVexp^2-4,33566434E-04*T_EVexp^3+9,41134033E-01*T_CDexp+3,47902098E-03*T_CDexp^2-1,51515151E-05*T_CDexp^3+3,84205128E-02*T_EVexp*T_CDexp+4,07342657E-04*T_EVexp*T_CDexp^2+1,05920745E-03*T_EVexp^2*T_CDexp+1,04895104E-06*T_EVexp^2*T_CDexp^2
-// formula original:  Pot_teorica = 82.4941434 - 0.537328089 * temp4 - 0.0626019814 * pow(temp4,2) - 0.000433566434 * pow(temp4,3) + 0.941134033 * temp3 + 0.00347902098 * pow(temp3,2) - 0.0000151515151 * 
-//                pow(temp3,3) + 0.0384205128 * temp4 * temp3 + 0.000407342657 * temp4 * pow(temp3,2) + 0.00105920745 * pow(temp4,2) * temp3 + 0.00000104895104 * pow(temp4,2) * pow(temp3,2);
+  //Pot_CPcalc1=8,24941434E+01-5,37328089E-01*T_EVexp-6,26019814E-02*T_EVexp^2-4,33566434E-04*T_EVexp^3+9,41134033E-01*T_CDexp+3,47902098E-03*T_CDexp^2-1,51515151E-05*T_CDexp^3+3,84205128E-02*T_EVexp*T_CDexp+4,07342657E-04*T_EVexp*T_CDexp^2+1,05920745E-03*T_EVexp^2*T_CDexp+1,04895104E-06*T_EVexp^2*T_CDexp^2
+  // formula original:  Pot_teorica = 82.4941434 - 0.537328089 * temp4 - 0.0626019814 * pow(temp4,2) - 0.000433566434 * pow(temp4,3) + 0.941134033 * temp3 + 0.00347902098 * pow(temp3,2) - 0.0000151515151 *
+  //                pow(temp3,3) + 0.0384205128 * temp4 * temp3 + 0.000407342657 * temp4 * pow(temp3,2) + 0.00105920745 * pow(temp4,2) * temp3 + 0.00000104895104 * pow(temp4,2) * pow(temp3,2);
 
-Pot_teorica = 82.4941434 - 0.537328089 * temp4 - 0.0626019814 * (temp4 * temp4) - 0.000433566434 * (temp4 * temp4 * temp4) + 0.941134033 * temp3 + 0.00347902098 * (temp3 * temp3) - 0.0000151515151 * 
-                (temp3 * temp3 * temp3) + 0.0384205128 * temp4 * temp3 + 0.000407342657 * temp4 * (temp3 * temp3) + 0.00105920745 * (temp4 * temp4) * temp3 + 0.00000104895104 * (temp4 * temp4) * 
+  Pot_teorica = 82.4941434 - 0.537328089 * temp4 - 0.0626019814 * (temp4 * temp4) - 0.000433566434 * (temp4 * temp4 * temp4) + 0.941134033 * temp3 + 0.00347902098 * (temp3 * temp3) - 0.0000151515151 *
+                (temp3 * temp3 * temp3) + 0.0384205128 * temp4 * temp3 + 0.000407342657 * temp4 * (temp3 * temp3) + 0.00105920745 * (temp4 * temp4) * temp3 + 0.00000104895104 * (temp4 * temp4) *
                 (temp3 * temp3);
-                
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -424,12 +399,12 @@ void setup() {
   digitalWrite(18, HIGH);
   digitalWrite(19, HIGH);
   // seta por padrao o compressor e exaustores para desligado/off toda vez que a ESP inicializa
-  comandos["compressor"] = false;
-  comandos["vent_evaporador"] = false;
-  comandos["vent_condensador"] = false;
-  doc["motor"] = false;
-  doc["vent condensador"] = false;
-  doc["vent evaporador"] = false;
+  comandos["cc"] = false;
+  comandos["cve"] = false;
+  comandos["cvc"] = false;
+  doc["m"] = false;
+  doc["vc"] = false;
+  doc["ve"] = false;
   controle();
 
   //WiFi.mode(WIFI_STA); // Esta linha esconde a visualização do ESP como hotspot wifi
@@ -469,14 +444,14 @@ void loop() {
 
   //comando:  {"compressor":false,"vent_evaporador":false,"vent_condensador":false}
   // loop para ficar "dormindo" quando o sistema não coleta dados, baseado no compressor, se estiver desligado, entra no loop
-  while (comandos["compressor"] == false) {
+  while (comandos["cc"] == false) {
     tempoAtual = millis();
     tempoAtual = tempoAtual - tempoAnterior;
     if (tempoAtual > tempoLoopDesligado) break; // fica preso no loop o tempo definido pra só depois enviar os dados, como um delay, mas mantendo ativo as funções de mqtt, OTA e wifi
 
     verificarStatusWifi(); //conecta e reconecta no wifi
 
-    //manipula clientes conectados
+    //manipula clientes conectados no servidor OTA
     server.handleClient();
 
     // conectar no broker mqtt
@@ -484,10 +459,7 @@ void loop() {
       reconnect();
     }
     client.loop();
-    Serial.println("loop controle compressor");
-
     controle();
-
     delay(2000);
   }
 
@@ -495,9 +467,7 @@ void loop() {
 
   server.handleClient(); //manipula clientes conectados
 
-  if (!client.connected()) {
-    reconnect(); // conectar no broker mqtt
-  }
+  if (!client.connected()) { reconnect();} // conectar no broker mqtt
   client.loop();
 
   controle(); // função de verificação dos comandos do compressor e exaustores, enviados pelo subscriber mqtt
@@ -505,11 +475,6 @@ void loop() {
   leituraNTC_digitais(); // leitura sensores digitais
   leituraPressao(); // leitura transdutores de pressão
   consumo(); // leitura wattímetro
-  
-
-  //dados = dados + String(temp1) + ";" + String(temp2) + ";" + String(temp3) + ";" + String(temp4) + ";" + String(temp5) +
-  //        ";" + String(temp6) + ";" + String(temp7) + ";" + String(temp8) + ";" + String(temp9) + ";" + String(pressaoBaixa) +
-  //        ";" + String(pressaoAlta) + ";" + String(W) + ";" + String(V) + ";" + String(I) + ";" + String(FP) + ";" + String(Wh);
 
   // condição caso o wattímetro esteja desligado, substituí o nan (null no json recebido pelo node-red) por 0 pra poder armazenar no influxDB
   if (isnan(W)) W = 0;
@@ -519,30 +484,30 @@ void loop() {
   if (isnan(Wh)) Wh = 0;
   if (isnan(Freq)) Freq = 0;
 
-  if (doc["pressao baixa"] < 0) doc["pressao baixa"] = 0;
-  if (doc["pressao alta"] < 0) doc["pressao alta"] = 0;
+  if (pressaoBaixa < 0) pressaoBaixa = 0;
+  if (pressaoAlta < 0) pressaoAlta = 0;
 
   // JSON
-//  doc["motor"] = false;
-//  doc["vent condensador"] = false;
-//  doc["vent evaporador"] = false;
-  doc["succao"] = temp1;
-  doc["descarga"] = temp2;
-  doc["filtro secador"] = temp3;
-  doc["entrada evaporador"] = temp4;
-  doc["saida evaporador"] = temp5;
-  doc["linha liquido"] = temp6;
-  doc["meio evaporador"] = temp7;
-  doc["ambiente"] = temp8; // T8 - ambiente
-  doc["compressor"] = temp9;
-  doc["pressao baixa"] = pressaoBaixa;
-  doc["pressao alta"] = pressaoAlta;
-  doc["potencia"] = W;
-  doc["tensao"] = V;
-  doc["corrente"] = I;
-  doc["fator potencia"] = FP;
-  doc["watt hora"] = Wh;
-  doc["frequencia"] = Freq;
+  //  doc["motor"] = false;
+  //  doc["vent condensador"] = false;
+  //  doc["vent evaporador"] = false;
+  doc["T1"] = temp1; // T1 - succao
+  doc["T2"] = temp2; // T2 - descarga
+  doc["T3"] = temp3; // T3 - filtro secador
+  doc["T4"] = temp4; // T4 - entrada evaporador
+  doc["T5"] = temp5; // T5 - saida evaporador
+  doc["T6"] = temp6; // T6 - linha liquido
+  doc["T7"] = temp7; // T7 - meio evaporador
+  doc["T8"] = temp8; // T8 - ambiente
+  doc["T9"] = temp9; // T9 - compressor
+  doc["PB"] = pressaoBaixa; // pressão baixa
+  doc["PA"] = pressaoAlta; // pressão alta
+  doc["W"] = W; // potência W
+  doc["V"] = V; // tensão
+  doc["I"] = I; // corrente
+  doc["FP"] = FP; // fator potência
+  doc["Wh"] = Wh; // watt hora
+  doc["freq"] = Freq; // frequência
 
   calculosTeoricos(); // calcula T3, T4 e Pot, teoricamente, pra comparar com o medido no sistema.
 
