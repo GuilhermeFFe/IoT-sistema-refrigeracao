@@ -1,1 +1,324 @@
-[{"id":"5657b89e.5902b8","type":"tab","label":"projeto IFSC","disabled":false,"info":""},{"id":"c600a213.9ccf2","type":"ui_switch","z":"5657b89e.5902b8","name":"Ventilação Evaporador","label":"Ventilação evaporador","tooltip":"","group":"d8054629.1d9e18","order":0,"width":0,"height":0,"passthru":true,"decouple":"false","topic":"vent_evaporador","style":"","onvalue":"true","onvalueType":"bool","onicon":"","oncolor":"","offvalue":"false","offvalueType":"bool","officon":"","offcolor":"","x":240,"y":360,"wires":[["6a7c8981.9937c8"]]},{"id":"7c775302.3e17bc","type":"ui_switch","z":"5657b89e.5902b8","name":"Ventilação Evaporador","label":"Ventilação condensador","tooltip":"","group":"d8054629.1d9e18","order":0,"width":0,"height":0,"passthru":true,"decouple":"false","topic":"vent_condensador","style":"","onvalue":"true","onvalueType":"bool","onicon":"","oncolor":"","offvalue":"false","offvalueType":"bool","officon":"","offcolor":"","x":240,"y":300,"wires":[["6a7c8981.9937c8"]]},{"id":"4da50c26.014e84","type":"ui_switch","z":"5657b89e.5902b8","name":"","label":"Compressor","tooltip":"","group":"d8054629.1d9e18","order":2,"width":0,"height":0,"passthru":true,"decouple":"false","topic":"compressor","style":"","onvalue":"true","onvalueType":"bool","onicon":"","oncolor":"","offvalue":"false","offvalueType":"bool","officon":"","offcolor":"","x":210,"y":240,"wires":[["6a7c8981.9937c8"]]},{"id":"6792aad0.43efc4","type":"json","z":"5657b89e.5902b8","name":"","property":"payload","action":"","pretty":false,"x":790,"y":300,"wires":[["5b911f2b.9a4ca","12f9f679.a52f0a"]]},{"id":"5b911f2b.9a4ca","type":"mqtt out","z":"5657b89e.5902b8","name":"Publisher","topic":"comandos","qos":"","retain":"","broker":"bd075b1.4fd12a8","x":1000,"y":300,"wires":[]},{"id":"b149829e.f757d","type":"mqtt in","z":"5657b89e.5902b8","name":"Subscriber","topic":"dados_refrig","qos":"0","datatype":"auto","broker":"bd075b1.4fd12a8","x":200,"y":80,"wires":[["aace22f3.2b9a1"]]},{"id":"12f9f679.a52f0a","type":"debug","z":"5657b89e.5902b8","name":"Debug inTopic","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"payload","targetType":"msg","x":1020,"y":380,"wires":[]},{"id":"8c19e874.a65388","type":"debug","z":"5657b89e.5902b8","name":"outTopic","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"payload","targetType":"msg","x":680,"y":160,"wires":[]},{"id":"aace22f3.2b9a1","type":"json","z":"5657b89e.5902b8","name":"dados","property":"payload","action":"","pretty":false,"x":450,"y":80,"wires":[["8c19e874.a65388","857a93c7.ac05e"]]},{"id":"857a93c7.ac05e","type":"influxdb out","z":"5657b89e.5902b8","influxdb":"40f5af08.bd742","name":"dados sensores","measurement":"dados","precision":"s","retentionPolicy":"","database":"database","precisionV18FluxV20":"ms","retentionPolicyV18Flux":"","org":"organisation","bucket":"bucket","x":700,"y":80,"wires":[]},{"id":"6a7c8981.9937c8","type":"join","z":"5657b89e.5902b8","name":"","mode":"custom","build":"object","property":"payload","propertyType":"msg","key":"topic","joiner":"\\n","joinerType":"str","accumulate":true,"timeout":"","count":"1","reduceRight":false,"reduceExp":"","reduceInit":"","reduceInitType":"","reduceFixup":"","x":490,"y":380,"wires":[["6792aad0.43efc4"]]},{"id":"d8054629.1d9e18","type":"ui_group","z":"","name":"Projeto IFSC","tab":"dc825fe5.edf","order":1,"disp":true,"width":"6","collapse":false},{"id":"bd075b1.4fd12a8","type":"mqtt-broker","z":"","name":"","broker":"localhost","port":"1883","clientid":"","usetls":false,"compatmode":true,"keepalive":"370","cleansession":true,"birthTopic":"","birthQos":"0","birthPayload":"","closeTopic":"","closeQos":"0","closePayload":"","willTopic":"","willQos":"0","willPayload":""},{"id":"40f5af08.bd742","type":"influxdb","z":"","hostname":"localhost","port":"8086","protocol":"http","database":"projetoIFSC","name":"dados projetoIFSC","usetls":false,"tls":"","influxdbVersion":"1.x","url":"http://localhost:8086","rejectUnauthorized":true},{"id":"dc825fe5.edf","type":"ui_tab","z":"","name":"Projeto IFSC","icon":"dashboard","disabled":false,"hidden":false}]
+[
+    {
+        "id": "5657b89e.5902b8",
+        "type": "tab",
+        "label": "projeto IFSC",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "c600a213.9ccf2",
+        "type": "ui_switch",
+        "z": "5657b89e.5902b8",
+        "name": "Ventilação Evaporador",
+        "label": "Ventilação evaporador",
+        "tooltip": "",
+        "group": "d8054629.1d9e18",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "decouple": "false",
+        "topic": "cve",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "true",
+        "onvalueType": "bool",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "false",
+        "offvalueType": "bool",
+        "officon": "",
+        "offcolor": "",
+        "animate": true,
+        "x": 240,
+        "y": 360,
+        "wires": [
+            [
+                "6a7c8981.9937c8"
+            ]
+        ]
+    },
+    {
+        "id": "7c775302.3e17bc",
+        "type": "ui_switch",
+        "z": "5657b89e.5902b8",
+        "name": "Ventilação Evaporador",
+        "label": "Ventilação condensador",
+        "tooltip": "",
+        "group": "d8054629.1d9e18",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "decouple": "false",
+        "topic": "cvc",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "true",
+        "onvalueType": "bool",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "false",
+        "offvalueType": "bool",
+        "officon": "",
+        "offcolor": "",
+        "animate": true,
+        "x": 240,
+        "y": 300,
+        "wires": [
+            [
+                "6a7c8981.9937c8"
+            ]
+        ]
+    },
+    {
+        "id": "4da50c26.014e84",
+        "type": "ui_switch",
+        "z": "5657b89e.5902b8",
+        "name": "",
+        "label": "Compressor",
+        "tooltip": "",
+        "group": "d8054629.1d9e18",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "decouple": "false",
+        "topic": "cc",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "true",
+        "onvalueType": "bool",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "false",
+        "offvalueType": "bool",
+        "officon": "",
+        "offcolor": "",
+        "animate": true,
+        "x": 210,
+        "y": 240,
+        "wires": [
+            [
+                "6a7c8981.9937c8"
+            ]
+        ]
+    },
+    {
+        "id": "6792aad0.43efc4",
+        "type": "json",
+        "z": "5657b89e.5902b8",
+        "name": "",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 790,
+        "y": 300,
+        "wires": [
+            [
+                "5b911f2b.9a4ca",
+                "12f9f679.a52f0a"
+            ]
+        ]
+    },
+    {
+        "id": "5b911f2b.9a4ca",
+        "type": "mqtt out",
+        "z": "5657b89e.5902b8",
+        "name": "Publisher",
+        "topic": "comandos",
+        "qos": "",
+        "retain": "",
+        "broker": "bd075b1.4fd12a8",
+        "x": 1000,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "b149829e.f757d",
+        "type": "mqtt in",
+        "z": "5657b89e.5902b8",
+        "name": "Subscriber",
+        "topic": "dados_refrig",
+        "qos": "0",
+        "datatype": "auto",
+        "broker": "bd075b1.4fd12a8",
+        "x": 200,
+        "y": 80,
+        "wires": [
+            [
+                "aace22f3.2b9a1"
+            ]
+        ]
+    },
+    {
+        "id": "12f9f679.a52f0a",
+        "type": "debug",
+        "z": "5657b89e.5902b8",
+        "name": "comandos",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1010,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "8c19e874.a65388",
+        "type": "debug",
+        "z": "5657b89e.5902b8",
+        "name": "outTopic",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 680,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "aace22f3.2b9a1",
+        "type": "json",
+        "z": "5657b89e.5902b8",
+        "name": "dados",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 450,
+        "y": 80,
+        "wires": [
+            [
+                "8c19e874.a65388",
+                "857a93c7.ac05e"
+            ]
+        ]
+    },
+    {
+        "id": "857a93c7.ac05e",
+        "type": "influxdb out",
+        "z": "5657b89e.5902b8",
+        "influxdb": "40f5af08.bd742",
+        "name": "dados sensores",
+        "measurement": "dados",
+        "precision": "s",
+        "retentionPolicy": "",
+        "database": "database",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "organisation",
+        "bucket": "bucket",
+        "x": 700,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "6a7c8981.9937c8",
+        "type": "join",
+        "z": "5657b89e.5902b8",
+        "name": "",
+        "mode": "custom",
+        "build": "object",
+        "property": "payload",
+        "propertyType": "msg",
+        "key": "topic",
+        "joiner": "\\n",
+        "joinerType": "str",
+        "accumulate": true,
+        "timeout": "",
+        "count": "1",
+        "reduceRight": false,
+        "reduceExp": "",
+        "reduceInit": "",
+        "reduceInitType": "",
+        "reduceFixup": "",
+        "x": 490,
+        "y": 380,
+        "wires": [
+            [
+                "6792aad0.43efc4"
+            ]
+        ]
+    },
+    {
+        "id": "bc0f0f5e.ecb5a",
+        "type": "aedes broker",
+        "z": "5657b89e.5902b8",
+        "name": "",
+        "mqtt_port": 1883,
+        "mqtt_ws_bind": "port",
+        "mqtt_ws_port": "",
+        "mqtt_ws_path": "",
+        "cert": "",
+        "key": "",
+        "certname": "",
+        "keyname": "",
+        "dburl": "",
+        "usetls": false,
+        "x": 230,
+        "y": 440,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "d8054629.1d9e18",
+        "type": "ui_group",
+        "name": "Projeto IFSC",
+        "tab": "dc825fe5.edf",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false
+    },
+    {
+        "id": "bd075b1.4fd12a8",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "",
+        "usetls": false,
+        "compatmode": true,
+        "keepalive": "370",
+        "cleansession": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": ""
+    },
+    {
+        "id": "40f5af08.bd742",
+        "type": "influxdb",
+        "hostname": "localhost",
+        "port": "8086",
+        "protocol": "http",
+        "database": "projetoIFSC",
+        "name": "dados projetoIFSC",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "1.x",
+        "url": "http://localhost:8086",
+        "rejectUnauthorized": true
+    },
+    {
+        "id": "dc825fe5.edf",
+        "type": "ui_tab",
+        "name": "Projeto IFSC",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    }
+]
