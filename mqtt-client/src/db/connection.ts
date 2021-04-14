@@ -1,27 +1,35 @@
 import * as influx from 'influx';
 import  consts from '../constants';
 
-interface idbData {
-    motor: boolean,
-    vent_condensador: boolean,
-    vent_evaporador: boolean,
-    succao: number,
-    descarga: number,
-    filtro_secador: number,
-    entrada_evaporador: number,
-    saida_evaporador: number,
-    linha_liquido: number,
-    meio_evaporador: number,
-    ambiente: number,
-    compressor: number,
-    pressao_baixa: number,
-    pressao_alta: number,
-    potencia: number,
-    tensao: number,
-    corrente: number,
-    fator_potencia: number,
-    watt_hora: number,
-    frequencia: number
+interface iDataRecv {
+    m: boolean,
+    mt: boolean,
+    cd: boolean,
+    vc: boolean,
+    ve: boolean,
+    T1: number,
+    T2: number,
+    T3: number,
+    T4: number,
+    T5: number,
+    T6: number,
+    T7: number,
+    T8: number,
+    T9: number,
+    PB: number,
+    PA: number,
+    W: number,
+    V: number,
+    I: number,
+    FP: number,
+    Wh: number,
+    freq: number
+};
+
+interface idbData extends iDataRecv {
+    T_ev_calc: number,
+    T_cd_calc: number,
+    P_calc: number
 };
 
 const database = new influx.InfluxDB( {
@@ -31,26 +39,31 @@ const database = new influx.InfluxDB( {
         {
             measurement: consts.DB_MEASUREMENT_NAME,
             fields: {
-                motor: influx.FieldType.BOOLEAN,
-                vent_condensador: influx.FieldType.BOOLEAN,
-                vent_evaporador: influx.FieldType.BOOLEAN,
-                succao: influx.FieldType.FLOAT,
-                descarga: influx.FieldType.FLOAT,
-                filtro_secador: influx.FieldType.FLOAT,
-                entrada_evaporador: influx.FieldType.FLOAT,
-                saida_evaporador: influx.FieldType.FLOAT,
-                linha_liquido: influx.FieldType.FLOAT,
-                meio_evaporador: influx.FieldType.FLOAT,
-                ambiente: influx.FieldType.FLOAT,
-                compressor: influx.FieldType.FLOAT,
-                pressao_baixa: influx.FieldType.FLOAT,
-                pressao_alta: influx.FieldType.FLOAT,
-                potencia: influx.FieldType.FLOAT,
-                tensao: influx.FieldType.FLOAT,
-                corrente: influx.FieldType.FLOAT,
-                fator_potencia: influx.FieldType.FLOAT,
-                watt_hora: influx.FieldType.FLOAT,
-                frequencia: influx.FieldType.FLOAT
+                m: influx.FieldType.BOOLEAN,
+                mt: influx.FieldType.BOOLEAN,
+                cd: influx.FieldType.BOOLEAN,
+                vc: influx.FieldType.BOOLEAN,
+                ve: influx.FieldType.BOOLEAN,
+                T1: influx.FieldType.FLOAT,
+                T2: influx.FieldType.FLOAT,
+                T3: influx.FieldType.FLOAT,
+                T4: influx.FieldType.FLOAT,
+                T5: influx.FieldType.FLOAT,
+                T6: influx.FieldType.FLOAT,
+                T7: influx.FieldType.FLOAT,
+                T8: influx.FieldType.FLOAT,
+                T9: influx.FieldType.FLOAT,
+                PB: influx.FieldType.FLOAT,
+                PA: influx.FieldType.FLOAT,
+                W: influx.FieldType.FLOAT,
+                V: influx.FieldType.FLOAT,
+                I: influx.FieldType.FLOAT,
+                FP: influx.FieldType.FLOAT,
+                Wh: influx.FieldType.FLOAT,
+                freq: influx.FieldType.FLOAT,
+                T_ev_calc: influx.FieldType.FLOAT,
+                T_cd_calc: influx.FieldType.FLOAT,
+                P_calc: influx.FieldType.FLOAT
             },
             tags: []
         }
@@ -66,5 +79,6 @@ database.createDatabase( consts.DB_NAME ).then( () => {
 
 export default database;
 export {
+    iDataRecv,
     idbData
 }
