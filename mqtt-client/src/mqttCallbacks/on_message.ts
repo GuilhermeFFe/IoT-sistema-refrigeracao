@@ -53,11 +53,14 @@ export default async ( topic: string, message: Buffer ) => {
         const to_insert: iDataRecv = JSON.parse( strMsg );
         const data: idbData = calculate_values( to_insert );
         if( measurement_padding === 0) {
-            emit_alert( data );
+            data.alert = await emit_alert( data );
         }
         else {
             measurement_padding--;
+            data.alert = false;
         }
+        // FIXME: remover alert colocado na mão, que foi usado para testes
+        data.alert = true;
         
         await insert( data );
     } catch ( err ) {

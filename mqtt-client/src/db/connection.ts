@@ -23,7 +23,8 @@ interface iDataRecv {
     I: number,
     FP: number,
     Wh: number,
-    freq: number
+    freq: number,
+    alert?: boolean
 };
 
 interface idbData extends iDataRecv {
@@ -63,7 +64,8 @@ const database = new influx.InfluxDB( {
                 freq: influx.FieldType.FLOAT,
                 T_ev_calc: influx.FieldType.FLOAT,
                 T_cd_calc: influx.FieldType.FLOAT,
-                P_calc: influx.FieldType.FLOAT
+                P_calc: influx.FieldType.FLOAT,
+                alert: influx.FieldType.BOOLEAN
             },
             tags: []
         }

@@ -31,7 +31,7 @@ const diff = (n1: number, n2: number): number => {
     return (n1+n2)/( (n1+n2)/2 );
 }
 
-const on_result = ( data: idbData, mean: iMeanData ): void => {
+const on_result = ( data: idbData, mean: iMeanData ): boolean => {
     if( diff( data.W, mean.mean_P_calc ) > 0.15 ||
         diff( data.T4, mean.mean_T_ev_calc ) > 0.15 ||
         diff( data.T3, mean.mean_T_cd_calc ) > 0.15 )
@@ -39,12 +39,14 @@ const on_result = ( data: idbData, mean: iMeanData ): void => {
         if( ++errors > 5 ) // 30 wrong measurements equals about >1 minute
         {
             emit_alert( );
+            return true;
         }
     }
     else
     {
         errors = 0;
     }
+    return false;
 }
 
 export default async ( data: idbData ) => {
@@ -53,9 +55,10 @@ export default async ( data: idbData ) => {
         if( ++errors > 5 )
         {
             emit_alert();
+            return true;
         }
     }
 
     const result = await db.query( `SELECT MEAN( * ) from ${consts.DB_MEASUREMENT_NAME} WHERE time > now()-5m` );
-    on_result( data, <iMeanData>result[0] );
+    return on_result( data, <iMeanData>result[0] );
 };

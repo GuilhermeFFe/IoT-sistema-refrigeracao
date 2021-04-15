@@ -15,11 +15,11 @@ const execute_command = (client: MqttClient, cmd: iCommands): void => {
 
 const turn_off = (client: MqttClient): void => {
     console.error( 'ALERT! Shutting down system due to shit hitting the fan!' );
-    execute_command( client, { cc: false, cvc: false } );
+    execute_command( client, { cc: false } );
 };
 
 const turn_on = (client: MqttClient): void => {
-    execute_command( client, { cc: true, cvc: true } );
+    execute_command( client, { cc: true, cd:true } );
 }
 
 export {
